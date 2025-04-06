@@ -7,7 +7,7 @@ import torchvision.transforms as vtransforms
 from IPython.display import display
 
 from woodtools.pipeline.transforms import datatransform
-from woodtools.pipeline.figure import ucl_figure
+from woodtools.plotting import ucl_figure
 
 class RotationWidget:
     # Use these to sync to global variables 
@@ -56,7 +56,7 @@ class RotationWidget:
     def _callback(self, change):
         angle = change['new']
         for name, items in self.mapping.items():
-            ax = items['ax']
+            ax = items['ax']   # noqa: F841
             data = items['data']
             transformed_data = datatransform(data, angle=angle, mode='nearest')
             items['image'].set_data(transformed_data)

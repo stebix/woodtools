@@ -1,6 +1,6 @@
 import zarr
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Sequence
 import ipywidgets as widgets
 
 class DatasetSelectorWidget:
