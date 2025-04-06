@@ -1,0 +1,47 @@
+# build and installation instructions for woodtools
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "woodtools"
+version = "0.0.1"
+authors = [
+  { name="Jannik Stebani", email="jannik.stebani@uni-wuerzburg.de" },
+]
+description = "Tooling and utility functionality to load, process and analyse submicro-CT and micro-CT data for wood scientific applications. "
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta"
+]
+license = {file = "LICENSE.txt"}
+keywords = [
+    "image processing", "wood science", "volumetric", 
+    "image analysis", "data processing"]
+
+dependencies = [
+  "numpy",
+  "torch",
+  "torchvision",
+  "matplotlib",
+  "zarr",
+  "scikit-image",
+  "monai",
+  "pillow",
+  "pytest",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/stebix/woodtools"
+Issues = "https://github.com/stebix/woodtools/issues"
+
+[tool.ruff]
+line-length = 99
+indent-width = 4
