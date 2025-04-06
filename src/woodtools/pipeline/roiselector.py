@@ -7,8 +7,74 @@ import ipywidgets as widgets
 
 from IPython.display import display
 from matplotlib.widgets import RectangleSelector
+from matplotlib.image import AxesImage
 
 from woodtools.pipeline.state import StateManager
+
+
+class AxisSlider:
+    def __init__(
+        self,
+        image: AxesImage,
+        volume: np.ndarray,
+        name: str = ''
+    ) -> None:
+        self.image = image
+        self.volume = volume
+
+        desc = f'slice {name}' if name else 'slice'
+
+        self.slider = widgets.IntSlider(
+            min=0, max=volume.shape[0] - 1, step=1,
+            description=desc,
+            continuous_update=False,
+            orientation='horizontal'
+        )
+        self.slider.observe(self.update_slice, names='value')
+    
+
+    def update_slice(self, change):
+        """Update the displayed slice based on the slider value"""
+        slice_index = change['new']
+        self.image.set_array(self.volume[slice_index])
+        self.image.axes.figure.canvas.draw_idle()
+
+
+def create_axis_slider(
+    image: AxesImage,
+    volume: np.ndarray,
+    name: str = '',
+    init: str = 'lower'
+) -> widgets.IntSlider:
+    
+    def update_slice(change):
+        """Update the displayed slice based on the slider value"""
+        slice_index = change['new']
+        image.set_array(volume[slice_index])
+        image.axes.figure.canvas.draw_idle()
+    
+    desc = f'slice {name}' if name else 'slice'
+
+    if init == 'lower':
+        init = 0
+    elif init == 'upper':
+        init = volume.shape[0] - 1
+    elif init == 'middle':
+        init = volume.shape[0] // 2
+    else:
+        raise ValueError(f'Unknown initialization value: {init}')
+
+    slider = widgets.IntSlider(
+        min=0, max=volume.shape[0] - 1, step=1,
+        value=init,
+        description=desc,
+        continuous_update=False,
+        orientation='horizontal'
+    )
+    slider.observe(update_slice, names='value')
+
+    return slider
+
 
 
 class SynchronizedRectangleSelector:
@@ -50,8 +116,9 @@ class SynchronizedRectangleSelector:
         # Display images and create selectors
         self.img_plots = []
         self.selectors = []
+        self.sliders = []
         
-        for i, ax in enumerate(self.axes):
+        for i, (ax, init) in enumerate(zip(self.axes, ['lower', 'middle', 'upper'])):
             img_plot = ax.imshow(self.images[i], cmap='viridis')
             self.img_plots.append(img_plot)
             
@@ -66,6 +133,14 @@ class SynchronizedRectangleSelector:
                 props=dict(facecolor='red', edgecolor='yellow', alpha=0.3, fill=True)
             )
             self.selectors.append(rs)
+
+            slider = create_axis_slider(
+                image=img_plot,
+                volume=self.state_manager.item.volume,
+                name=f'{i+1}',
+                init=init
+            )
+            self.sliders.append(slider)
             
             # Add title
             ax.set_title(f'Image {i+1}')
@@ -147,6 +222,9 @@ class SynchronizedRectangleSelector:
         Bottom-right: ({self.rect_coords['x1']:.2f}, {self.rect_coords['y1']:.2f})<br>
         Width: {abs(self.rect_coords['x1'] - self.rect_coords['x0']):.2f}<br>
         Height: {abs(self.rect_coords['y1'] - self.rect_coords['y0']):.2f}
+        <b>Selected z-axis range:</b><br>
+        Lower: {self.sliders[0].value}<br>
+        Upper: {self.sliders[2].value}<br>
         """
     
     def export_coordinates(self, b):
@@ -158,6 +236,11 @@ class SynchronizedRectangleSelector:
             'bottom_left': [float(self.rect_coords['x0']), float(self.rect_coords['y1'])],
             'bottom_right': [float(self.rect_coords['x1']), float(self.rect_coords['y1'])]
         }
+        if self.z_checkbox.value:
+            coords_dict['z_range'] = [
+                int(self.sliders[0].value),
+                int(self.sliders[2].value)
+            ]
         self.state_manager.item.parameters['roi'] = coords_dict
 
     
@@ -170,10 +253,18 @@ class SynchronizedRectangleSelector:
             ID = {self.deduce_ID()}<br>
             <b>Selected Rectangle Coordinates:</b><br>
             <b>Selected Rectangle Coordinates:</b><br>No selection yet
+            <b>Selected z-axis range:</b><br>
+            Lower: {self.sliders[0].min}<br>
+            Upper: {self.sliders[2].max}<br>
             """,
             layout=widgets.Layout(width='100%')
         )
-        
+
+        self.z_checkbox = widgets.Checkbox(
+            value=False,
+            description='Z-axis ROI',
+            disabled=False,
+        )        
    
         # Create an export button
         self.export_button = widgets.Button(
@@ -184,7 +275,9 @@ class SynchronizedRectangleSelector:
         self.export_button.on_click(self.export_coordinates)
         
         # Display all widgets
-        display(widgets.HBox([self.coord_text, self.export_button]))
+        display(widgets.HBox(
+            [self.coord_text, self.z_checkbox, widgets.VBox(self.sliders), self.export_button]
+        ))
     
 
 
@@ -258,9 +351,15 @@ def extract_roi(volume: np.ndarray, roispec: dict[str, Sequence[float]]) -> np.n
     assert np.isclose(dy, int(np.round(p3.y - p1.y)))
     x0 = int(np.round(p0.x))
     y0 = int(np.round(p0.y))
+
+    try:
+        zstart, zend = roispec['z_range']
+        zslice = slice(zstart, zend)
+    except KeyError:
+        zslice = slice(None)
     
     slices = tuple(
-        (slice(None), slice(y0, y0+dy), slice(x0, x0+dx))
+        (zslice, slice(y0, y0+dy), slice(x0, x0+dx))
     )
     return np.copy(volume[*slices])
     

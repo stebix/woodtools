@@ -20,7 +20,7 @@ class DatasetSelectorWidget:
         state_manager: StateManager,
         basepath: Path,
         classes: Sequence[str] = ('acer', 'pinus'),
-        subidentifiers: Sequence[str] = ('left', 'right', 'upper', 'lower'),
+        subidentifiers: Sequence[str] = ('center', 'left', 'right', 'upper', 'lower'),
     ) -> None:
         
         self.state_manager = state_manager
