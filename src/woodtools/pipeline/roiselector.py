@@ -8,14 +8,15 @@ import ipywidgets as widgets
 from IPython.display import display
 from matplotlib.widgets import RectangleSelector
 
+from woodtools.pipeline.state import StateManager
+
 
 class SynchronizedRectangleSelector:
-    obj_name: str = '__CURRENT_OBJECT__'
-    volume_key: str = 'rotated_volume'
-    ID_key: str = 'ID'
-    parameters_key: str = '__PARAMETERS__'
         
-    def __init__(self, images=None, num_axes=3):
+    def __init__(self,
+        state_manager: StateManager,
+        images: Sequence[np.ndarray] | None = None,
+        num_axes: int = 3):
         """
         Initialize a figure with multiple axes and synchronized rectangle selectors
         
@@ -26,6 +27,9 @@ class SynchronizedRectangleSelector:
         num_axes : int, default=3
             Number of axes to create if images is None
         """
+
+        self.state_manager = state_manager
+
         # Create sample images if none provided
         if images is None:
             self.images = self.deduce_images()
@@ -73,13 +77,13 @@ class SynchronizedRectangleSelector:
         plt.tight_layout()
         
     def deduce_images(self) -> np.ndarray:
-        volume = globals()[self.obj_name][self.volume_key]
+        volume = self.state_manager.item.volume
         uidx, cidx, lidx = 0, volume.shape[0] //2, volume.shape[0] - 1
         images = [volume[idx, ...] for idx in (uidx, cidx, lidx)]
         return images
     
     def deduce_ID(self) -> str:
-        return globals()[self.obj_name][self.ID_key]
+        return self.state_manager.item.ID
     
     def line_select_callback(self, eclick, erelease):
         """Callback for rectangle selector"""
@@ -154,12 +158,8 @@ class SynchronizedRectangleSelector:
             'bottom_left': [float(self.rect_coords['x0']), float(self.rect_coords['y1'])],
             'bottom_right': [float(self.rect_coords['x1']), float(self.rect_coords['y1'])]
         }
-        ID = self.deduce_ID()
-        try:
-            globals()[self.parameters_key][ID]['roi'] = coords_dict
-        except KeyError:
-            globals()[self.parameters_key][ID] = {}
-            globals()[self.parameters_key][ID]['roi'] = coords_dict
+        self.state_manager.item.parameters['roi'] = coords_dict
+
     
     def setup_widgets(self):
         """Set up the ipywidgets for user interaction"""

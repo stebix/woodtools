@@ -12,17 +12,13 @@ from IPython.display import display
 from woodtools.pipeline.transforms import datatransform
 from woodtools.plotting import ucl_figure
 
+from woodtools.pipeline.state import StateManager
+
 class RotationWidget:
-    # Use these to sync to global variables 
-    obj_name: str = '__CURRENT_OBJECT__'
-    ID_key: str = 'ID'
-    volume_key: str = 'volume'
-    rotated_volume_key: str = 'rotated_volume'
-        
-    parameter_cache_name: str = '__PARAMETERS__'
     
     def __init__(
         self,
+        state_manager: StateManager,
         volume: np.ndarray | None = None,
         vmin: float | None = None,
         vmax: float | None = None,
@@ -30,6 +26,8 @@ class RotationWidget:
         ID: str | None = None,
         alpha_range: tuple[float, float] = (-20.0, 20.0)
     ) -> None:
+        
+        self.state_manager = state_manager
         self.volume = self.deduce_volume() if volume is None else volume
         self.vmin = vmin
         self.vmax = vmax
@@ -51,10 +49,10 @@ class RotationWidget:
         
         
     def deduce_ID(self) -> str:
-        return globals()[self.obj_name][self.ID_key]
+        return self.state_manager.item.ID
     
     def deduce_volume(self) -> np.ndarray:
-        return globals()[self.obj_name][self.volume_key]
+        return self.state_manager.item.volume
     
     def _callback(self, change):
         angle = change['new']
@@ -78,16 +76,15 @@ class RotationWidget:
         rotated_volume = vtransforms.functional.rotate(
             volume, angle=angle, interpolation=mode
         )
-        globals()[self.obj_name][self.rotated_volume_key] = rotated_volume
-        try:
-            globals()[self.parameter_cache_name][self.ID]['rotation'] = {
-                'angle' : angle, 'mode' : str(mode)
-            }
-        except KeyError:
-            globals()[self.parameter_cache_name][self.ID] = {}
-            globals()[self.parameter_cache_name][self.ID]['rotation'] = {
-                'angle' : angle, 'mode' : str(mode)
-            }
+
+        rotation_paramters = {'angle' : angle, 'mode' : str(mode)}
+        workitem = self.state_manager.item.copy()
+        workitem.volume = np.asarray(rotated_volume)
+        workitem.parameters['rotation'] = rotation_paramters
+
+        self.state_manager.update(workitem)    
+
+
     
     def setup_widgets(self):
         self.angle_slider.observe(self._callback, names='value')
