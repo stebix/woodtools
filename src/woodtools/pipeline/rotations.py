@@ -1,8 +1,11 @@
+from pathlib import Path
 
 import ipywidgets as widgets
 import numpy as np
 import torch
 import torchvision.transforms as vtransforms
+import tqdm
+import zarr
 
 from IPython.display import display
 
@@ -90,3 +93,58 @@ class RotationWidget:
         self.angle_slider.observe(self._callback, names='value')
         self.rotate_button.on_click(self.rotate)
         display(widgets.HBox([self.angle_slider, self.rotate_button]))
+
+
+
+def rotate_zarr(
+    source: Path,
+    target: Path,
+    angle: float,
+    mode: str
+) -> None:
+    if target.exists():
+        raise FileExistsError(f'connot write to pre-existing location \'{target}\'')
+    mode = vtransforms.transforms.InterpolationMode(mode) if isinstance(mode, str) else mode
+    data = zarr.open(source)['downsampled/sam-native'][...]
+    volume = torch.as_tensor(data)
+    rotated_volume = vtransforms.functional.rotate(
+        volume, angle=angle, interpolation=mode
+    )
+    outfile = zarr.open(target)
+    outfile['downsampled/sam-native'] = np.asarray(rotated_volume)
+    
+    
+
+def bulk_rotate_zarr(
+    sourcedir: Path,
+    targetdir: Path,
+    angle_mapping: dict[str, float],
+    mode: str
+) -> None:
+    mode = vtransforms.transforms.InterpolationMode(mode)
+    src_paths = list(sourcedir.iterdir())
+    for item in tqdm.tqdm(src_paths, unit='dset'):
+        name = item.name
+        
+        trgt_path = targetdir / name
+        
+        if trgt_path.exists():
+            print(f'skipping item \'{item}\': would overwrite data')
+            continue
+        
+        try:
+            stem, suffix = name.split('.')
+        except ValueError:
+            print(f'skipping malformed item: \'{item}\'')
+            continue
+        
+        if not suffix.endswith('zarr') and not item.is_file():
+            print(f'skipping invalid item: \'{item}\'')
+            continue
+        try:
+            angle = angle_mapping[stem]
+        except KeyError:
+            print(f'could not rotate item \'{item}\': missing angle specification')
+            continue
+            
+        rotate_zarr(source=item, target=trgt_path, angle=angle, mode=mode)        

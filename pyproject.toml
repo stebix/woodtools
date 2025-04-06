@@ -32,7 +32,6 @@ dependencies = [
   "matplotlib",
   "zarr",
   "scikit-image",
-  "monai",
   "pillow",
   "pytest",
 ]
